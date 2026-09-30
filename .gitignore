@@ -1,0 +1,25 @@
+# Build artefacts
+bin/
+dist/
+tmp/
+out/
+*.test
+coverage.out
+
+# Secrets and local overrides
+.env
+deploy/.env
+services/**/.env
+
+# Logs
+*.log
+
+# Editor and OS noise
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Go workspace files
+go.work
+go.work.sum
