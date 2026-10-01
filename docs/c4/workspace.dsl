@@ -42,19 +42,19 @@ workspace "Marketplace Platform" "Проектирование архитект�
             gateway = container "API Gateway" "Go, net/http" "Единая точка входа: проверка токена, rate limit, маршрутизация, единый формат ошибок"
 
             identity = container "Identity Service" "Go, HTTP / JSON" "Регистрация и вход, роли покупателя и продавца, профиль продавца, проверка документов"
-            identityDb = container "identity_db" "PostgreSQL 16" "Пользователи, роли, профили продавцов. Доступ имеет только Identity Service" {
+            identityDb = container "identity_db" "PostgreSQL 16" "Пользователи, роли, профиль продавца, документы, адресная книга, избранное. Доступ имеет только Identity Service" {
                 tags "Database"
             }
 
             catalog = container "Catalog Service" "Go, HTTP / JSON" "Товары, категории, атрибуты, описания, медиа, жизненный цикл карточки товара" {
                 tags "Implemented"
             }
-            catalogDb = container "catalog_db" "PostgreSQL 16" "Карточки товаров, категории, атрибуты, ссылки на медиа. Доступ имеет только Catalog Service" {
+            catalogDb = container "catalog_db" "PostgreSQL 16" "Карточки товаров, категории, атрибуты, ссылки на медиа, отзывы и оценки. Доступ имеет только Catalog Service" {
                 tags "Database"
             }
 
             search = container "Search & Personalization Service" "Go, gRPC, OpenSearch" "Поиск по каталогу, сборка персональной ленты: признаки, отбор кандидатов, ранжирование"
-            searchDb = container "search_db" "PostgreSQL 16" "Профиль интересов, история показов и кликов, признаки для ранжирования" {
+            searchDb = container "search_db" "PostgreSQL 16" "Профиль интересов, история показов и кликов, признаки для ранжирования. Доступ имеет только Search & Personalization Service" {
                 tags "Database"
             }
             searchIndex = container "Индекс каталога" "OpenSearch 2" "Инвертированный индекс товаров, реплицируется из событий каталога" {
@@ -67,7 +67,7 @@ workspace "Marketplace Platform" "Проектирование архитект�
             }
 
             order = container "Order Service" "Go, HTTP / JSON" "Оформление заказа и оркестрация саги: подтверждение, оплата, отправка, компенсации"
-            orderDb = container "order_db" "PostgreSQL 16" "Заказы, позиции, состояние саги, журнал переходов статусов" {
+            orderDb = container "order_db" "PostgreSQL 16" "Заказы, позиции, состояние саги, журнал переходов статусов. Доступ имеет только Order Service" {
                 tags "Database"
             }
 
@@ -77,12 +77,12 @@ workspace "Marketplace Platform" "Проектирование архитект�
             }
 
             fulfillment = container "Fulfillment Service" "Go, HTTP / JSON" "Отправления: склад, передача перевозчику, трекинг, возвраты"
-            fulfillmentDb = container "fulfillment_db" "PostgreSQL 16" "Отправления, события трекинга, условия возврата" {
+            fulfillmentDb = container "fulfillment_db" "PostgreSQL 16" "Отправления, события трекинга, условия возврата. Доступ имеет только Fulfillment Service" {
                 tags "Database"
             }
 
             notification = container "Notification Service" "Go, consumer" "Уведомления о статусах заказа, шаблоны, выбор канала, защита от дублей"
-            notificationDb = container "notification_db" "PostgreSQL 16" "Шаблоны уведомлений, журнал отправок, признаки прочитанного" {
+            notificationDb = container "notification_db" "PostgreSQL 16" "Шаблоны уведомлений, журнал отправок, признаки прочитанного. Доступ имеет только Notification Service" {
                 tags "Database"
             }
 
@@ -155,7 +155,10 @@ workspace "Marketplace Platform" "Проектирование архитект�
         // ------------------------------------------------------------------
         // Допущения
         // ------------------------------------------------------------------
-        !docs "Показан выбранный вариант декомпозиции — микросервисы по доменам. Сравнение с модульным монолитом и крупнозернистыми сервисами приведено в README.md"
+        !docs "Выделено 10 доменов: идентификация, продавец, каталог, модерация, корзина, заказ, платежи, выполнение, уведомления, поиск и персонализация. Из них 8 ложатся в свой сервис, модерация разделена между Catalog (проверка карточек) и Identity (споры и блокировки). Правило разбиения: один сервис — одна команда, один цикл релиза, одно хранилище; домены объединяются, если меняются вместе и разделяют модель данных"
+        !docs "Границы владения данными: каждая из 8 баз принадлежит ровно одному сервису, разделяемых баз нет. Данные передаются вызовом или событием, ни один сервис не читает чужую базу. search_db хранит персональные данные пользователя внутри Search, а не в общей базе. Взаимодействия: 12 sync и 7 async, полная таблица в docs/c4/02-container.md"
+        !docs "Выбранный вариант декомпозиции — микросервисы по доменам: восемь сервисов, восемь независимых баз, синхронные вызовы на критическом пути и Kafka для фоновых потоков. Рассмотренные варианты, trade-off'ы и обоснование выбора: docs/adr/0001-decomposition-options.md"
+        !docs "Разбор доменов, распределения по сервисам и владения данными: docs/c4/03-domains.md"
     }
 
     // ----------------------------------------------------------------------

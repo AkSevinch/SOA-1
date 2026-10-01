@@ -1,9 +1,5 @@
 # C4 Level 2 — Container Diagram
 
-Это **основная диаграмма задания**. Она показывает, из чего собран маркетплейс: какие сервисы существуют, какие у каждого свои хранилища, кто с кем и как взаимодействует.
-
-## Правила, по которым построена диаграмма
-
 | Правило нотации C4 | Как применено здесь |
 |---|---|
 | Контейнер = то, что **запускается отдельно** | Сервисы, базы данных, брокер, кэш, объектное хранилище, веб-клиент. Внутренние пакеты Go-сервиса сюда **не** попадают — это уровень 3 |
@@ -12,7 +8,12 @@
 | Границы показаны явно | Пунктирная рамка `System_Boundary` — всё, что является маркетплейсом |
 | Внешние системы не смешаны со своими | Платёжный шлюз, API доставки, провайдеры уведомлений и входа вынесены наружу и помечены как внешние |
 
-**Легенда синхронности:** `sync` — вызов, от которого вызывающий ждёт ответа в том же запросе; `async` — публикация события в шину, отправитель не ждёт обработки.
+
+
+![C4 Level 2 — контейнерная диаграмма маркетплейса](images/02-container.svg)
+
+<details>
+<summary>Mermaid-исходник диаграммы</summary>
 
 ```mermaid
 C4Container
@@ -33,29 +34,29 @@ C4Container
         Container(gateway, "API Gateway", "Go, net/http", "Единая точка входа: проверка токена, rate limit, маршрутизация запросов к сервисам, единый формат ошибок")
 
         Container(identity, "Identity Service", "Go, HTTP / JSON", "Регистрация и вход, роли покупателя и продавца, профиль продавца, проверка документов")
-        ContainerDb(identityDb, "identity_db", "PostgreSQL 16", "Пользователи, роли, профили продавцов. Доступ имеет только Identity Service")
+        ContainerDb(identityDb, "identity_db", "PostgreSQL 16", "Пользователи, роли, профиль продавца, документы, адресная книга, избранное. Доступ имеет только Identity Service")
 
         Container(catalog, "Catalog Service", "Go, HTTP / JSON", "Товары, категории, атрибуты, описания, медиа, жизненный цикл карточки: черновик → на проверке → опубликован")
-        ContainerDb(catalogDb, "catalog_db", "PostgreSQL 16", "Карточки товаров, категории, атрибуты, ссылки на медиа. Доступ имеет только Catalog Service")
+        ContainerDb(catalogDb, "catalog_db", "PostgreSQL 16", "Карточки товаров, категории, атрибуты, ссылки на медиа, отзывы и оценки. Доступ имеет только Catalog Service")
 
         Container(search, "Search & Personalization Service", "Go, gRPC, OpenSearch", "Поиск по каталогу, сборка персональной ленты: признаки поведения, отбор кандидатов, ранжирование")
-        ContainerDb(searchDb, "search_db", "PostgreSQL 16", "Профиль интересов пользователя, история показов и кликов, признаки для ранжирования")
+        ContainerDb(searchDb, "search_db", "PostgreSQL 16", "Профиль интересов пользователя, история показов и кликов, признаки для ранжирования. Доступ имеет только Search & Personalization")
         Container(searchIndex, "Индекс каталога", "OpenSearch 2", "Инвертированный индекс товаров, реплицируется из событий каталога")
 
         Container(cart, "Cart Service", "Go, HTTP / JSON", "Корзина покупателя, добавление и удаление позиций, предварительный расчёт суммы")
         ContainerDb(cartDb, "cart_db", "PostgreSQL 16", "Корзины и их позиции. Доступ имеет только Cart Service")
 
         Container(order, "Order Service", "Go, HTTP / JSON", "Оформление заказа и оркестрация саги: подтверждение, оплата, отправка, компенсации. Единственный владелец жизненного цикла заказа")
-        ContainerDb(orderDb, "order_db", "PostgreSQL 16", "Заказы, позиции заказа, состояние саги, журнал переходов статусов")
+        ContainerDb(orderDb, "order_db", "PostgreSQL 16", "Заказы, позиции заказа, состояние саги, журнал переходов статусов. Доступ имеет только Order Service")
 
         Container(payment, "Payment Service", "Go, HTTP / JSON", "Расчёт и учёт платежей: авторизация, захват, возврат, взаиморасчёты с продавцами и комиссия платформы")
         ContainerDb(paymentDb, "payment_db", "PostgreSQL 16", "Платежи, транзакции, ledger выплат продавцам. Доступ имеет только Payment Service")
 
         Container(fulfillment, "Fulfillment Service", "Go, HTTP / JSON", "Отправления: выбор склада, передача перевозчику, трекинг, приём возврата")
-        ContainerDb(fulfillmentDb, "fulfillment_db", "PostgreSQL 16", "Отправления, события трекинга, условия возврата")
+        ContainerDb(fulfillmentDb, "fulfillment_db", "PostgreSQL 16", "Отправления, события трекинга, условия возврата. Доступ имеет только Fulfillment Service")
 
         Container(notification, "Notification Service", "Go, consumer", "Уведомления о статусах заказа, шаблоны, выбор канала, защита от дублей")
-        ContainerDb(notificationDb, "notification_db", "PostgreSQL 16", "Шаблоны уведомлений, журнал отправок, признаки прочитанного")
+        ContainerDb(notificationDb, "notification_db", "PostgreSQL 16", "Шаблоны уведомлений, журнал отправок, признаки прочитанного. Доступ имеет только Notification Service")
 
         Container(broker, "Шина событий", "Kafka 3", "Единая точка обмена событиями между сервисами. Транспорт асинхронных взаимодействий")
         Container(cache, "Кэш", "Redis 7", "Кэш горячих выборок и результатов поиска, распределённая блокировка")
@@ -63,54 +64,54 @@ C4Container
     }
 
     %% --- Доступ людей -----------------------------------------------------
-    Rel(buyer, web, "Покупает товары, оформляет заказ, следит за доставкой", "HTTPS")
-    Rel(seller, web, "Управляет товарами, остатками и заказами магазина", "HTTPS")
+    Rel(buyer, web, "Покупает, оформляет", "HTTPS")
+    Rel(seller, web, "Товары магазина", "HTTPS")
     Rel(moderator, web, "Модерирует каталог и споры", "HTTPS")
     Rel(web, idp, "Вход через внешний аккаунт", "OAuth 2.0 / OIDC")
 
     %% --- Вход в систему ---------------------------------------------------
     Rel(web, gateway, "Запросы к API", "REST / JSON, HTTPS")
-    Rel(gateway, identity, "Проверка токена, профиль, роли", "REST / JSON, sync")
+    Rel(gateway, identity, "Токен, профиль, роли", "REST / JSON, sync")
     Rel(gateway, catalog, "Каталог товаров продавца", "REST / JSON, sync")
     Rel(gateway, search, "Поиск и персонализированная лента", "gRPC, sync")
     Rel(gateway, cart, "Работа с корзиной", "REST / JSON, sync")
     Rel(gateway, order, "Оформление и статусы заказов", "REST / JSON, sync")
 
     %% --- Владение данными: сервис -> только своя БД ------------------------
-    Rel(identity, identityDb, "Чтение и запись", "SQL")
-    Rel(catalog, catalogDb, "Чтение и запись", "SQL")
-    Rel(search, searchDb, "Признаки и профиль интересов", "SQL")
+    Rel(identity, identityDb, "SQL", "SQL")
+    Rel(catalog, catalogDb, "SQL", "SQL")
+    Rel(search, searchDb, "Признаки интересов", "SQL")
     Rel(search, searchIndex, "Поиск и фильтрация", "HTTP")
-    Rel(cart, cartDb, "Чтение и запись", "SQL")
-    Rel(order, orderDb, "Чтение и запись", "SQL")
-    Rel(payment, paymentDb, "Чтение и запись", "SQL")
-    Rel(fulfillment, fulfillmentDb, "Чтение и запись", "SQL")
+    Rel(cart, cartDb, "SQL", "SQL")
+    Rel(order, orderDb, "SQL", "SQL")
+    Rel(payment, paymentDb, "SQL", "SQL")
+    Rel(fulfillment, fulfillmentDb, "SQL", "SQL")
     Rel(notification, notificationDb, "Шаблоны и журнал отправок", "SQL")
 
     %% --- Вспомогательная инфраструктура ------------------------------------
     Rel(catalog, cache, "Горячие выборки каталога", "RESP")
     Rel(search, cache, "Кэш результатов ленты", "RESP")
-    Rel(catalog, media, "Фото товаров, документы продавца", "S3 API, async")
+    Rel(catalog, media, "Фото и документы", "S3 API, async")
 
     %% --- Синхронные вызовы между сервисами (внутри одного запроса) ---------
     Rel(search, catalog, "Карточка товара и наличие", "REST / JSON, sync")
-    Rel(search, identity, "Профиль покупателя и его интересы", "REST / JSON, sync")
-    Rel(order, catalog, "Проверка цены и наличия на момент заказа", "REST / JSON, sync")
-    Rel(order, identity, "Данные покупателя и продавца", "REST / JSON, sync")
+    Rel(search, identity, "Профиль и интересы", "REST / JSON, sync")
+    Rel(order, catalog, "Цена и наличие", "REST / JSON, sync")
+    Rel(order, identity, "Данные покупателя", "REST / JSON, sync")
     Rel(order, cart, "Списание и очистка корзины", "REST / JSON, sync")
-    Rel(order, payment, "Создание, авторизация и захват платежа", "REST / JSON, sync")
+    Rel(order, payment, "Создание и захват платежа", "REST / JSON, sync")
     Rel(order, fulfillment, "Создание отправления", "REST / JSON, sync")
 
     %% --- Асинхронные взаимодействия через шину -----------------------------
-    Rel(catalog, broker, "Публикует product.created / product.updated / product.removed", "Kafka, async")
-    Rel(order, broker, "Публикует order.created / order.paid / order.closed", "Kafka, async")
-    Rel(payment, broker, "Публикует payment.captured / payment.refunded", "Kafka, async")
-    Rel(fulfillment, broker, "Публикует shipment.created / shipment.delivered", "Kafka, async")
-    Rel(broker, search, "Перестраивает индекс и признаки для ленты", "Kafka, async")
-    Rel(broker, payment, "Заказ оплачен: авторизация и захват", "Kafka, async")
-    Rel(broker, fulfillment, "Заказ оплачен: создать отправление", "Kafka, async")
-    Rel(broker, notification, "Изменения статусов заказа, оплаты и доставки", "Kafka, async")
-    Rel(broker, catalog, "Снятие товара с продажи, если нет остатка", "Kafka, async")
+    Rel(catalog, broker, "", "")
+    Rel(order, broker, "", "")
+    Rel(payment, broker, "", "")
+    Rel(fulfillment, broker, "", "")
+    Rel(broker, search, "", "")
+    Rel(broker, payment, "", "")
+    Rel(broker, fulfillment, "", "")
+    Rel(broker, notification, "", "")
+    Rel(broker, catalog, "", "")
 
     %% --- Внешние интеграции ------------------------------------------------
     Rel(payment, paymentGateway, "Авторизация, захват, возврат средств", "HTTPS, sync")
@@ -123,16 +124,50 @@ C4Container
     UpdateElementStyle(buyer, $bgColor="#c8e6c9", $borderColor="#2e7d32", $fontColor="#0b2e0f")
     UpdateElementStyle(seller, $bgColor="#c8e6c9", $borderColor="#2e7d32", $fontColor="#0b2e0f")
     UpdateElementStyle(moderator, $bgColor="#c8e6c9", $borderColor="#2e7d32", $fontColor="#0b2e0f")
-    UpdateRelStyle(buyer, web, $textColor="#0b2e0f", $lineColor="#2e7d32", $textOnEdge="true")
-    UpdateRelStyle(seller, web, $textColor="#0b2e0f", $lineColor="#2e7d32", $textOnEdge="true")
-    UpdateRelStyle(moderator, web, $textColor="#0b2e0f", $lineColor="#2e7d32", $textOnEdge="true")
-```
+    UpdateRelStyle(buyer, web, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(seller, web, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(moderator, web, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(web, idp, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(web, gateway, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(gateway, identity, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(gateway, catalog, $textColor="#0b2e0f", $lineColor="#0b2e0f", $offsetX="24")
+    UpdateRelStyle(gateway, search, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(gateway, cart, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(gateway, order, $textColor="#0b2e0f", $lineColor="#0b2e0f", $offsetX="-24")
+    UpdateRelStyle(identity, identityDb, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(catalog, catalogDb, $textColor="#0b2e0f", $lineColor="#0b2e0f", $offsetY="-20")
+    UpdateRelStyle(search, searchDb, $textColor="#0b2e0f", $lineColor="#0b2e0f", $offsetY="20")
+    UpdateRelStyle(search, searchIndex, $textColor="#0b2e0f", $lineColor="#0b2e0f", $offsetY="-18")
+    UpdateRelStyle(cart, cartDb, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(order, orderDb, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(payment, paymentDb, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(fulfillment, fulfillmentDb, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(notification, notificationDb, $textColor="#0b2e0f", $lineColor="#0b2e0f", $offsetY="20")
+    UpdateRelStyle(catalog, cache, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(search, cache, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(catalog, media, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(search, catalog, $textColor="#0b2e0f", $lineColor="#0b2e0f", $offsetX="-16")
+    UpdateRelStyle(search, identity, $textColor="#0b2e0f", $lineColor="#0b2e0f", $offsetY="-14")
+    UpdateRelStyle(order, catalog, $textColor="#0b2e0f", $lineColor="#0b2e0f", $offsetY="16")
+    UpdateRelStyle(order, identity, $textColor="#0b2e0f", $lineColor="#0b2e0f", $offsetX="18")
+    UpdateRelStyle(order, cart, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(order, payment, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(order, fulfillment, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(catalog, broker, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(order, broker, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(payment, broker, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(fulfillment, broker, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(broker, search, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(broker, payment, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(broker, fulfillment, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(broker, notification, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(broker, catalog, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(payment, paymentGateway, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(fulfillment, carrier, $textColor="#0b2e0f", $lineColor="#0b2e0f")
+    UpdateRelStyle(notification, msgProviders, $textColor="#0b2e0f", $lineColor="#0b2e0f")```
 
-**Синим выделен Catalog Service** — тот самый сервис, который реализован и поднят в Docker в рамках этого ДЗ (см. [../../README.md](../../README.md)). Остальные сервисы пока только спроектированы, что разрешено условием задания.
+</details>
 
-## Таблица взаимодействий
-
-Диаграмма показывает связи графически; эта таблица дублирует их текстом, чтобы её можно было прочитать без рендеринга и чтобы ничего не потерялось при раскладке.
 
 | Вызывающий | Вызываемый | Способ | Синхронность | Зачем |
 |---|---|---|---|---|
@@ -149,12 +184,9 @@ C4Container
 | Payment | Платёжный шлюз | HTTPS | sync | Внешний эквайринг требует ответа |
 | Fulfillment | API доставки | HTTPS | sync | Внешний трекинг требует ответа |
 | Catalog → шина | Search, Notification | Kafka | **async** | Реактивное обновление индекса, уведомления |
+| Catalog → шина | сам Catalog (снятие товара) | Kafka | **async** | Карточка уходит с продажи, если закончился остаток |
 | Order → шина | Payment, Fulfillment, Notification | Kafka | **async** | Дальнейшие шаги не держат на критическом пути |
+| Payment → шина | Search, Notification | Kafka | **async** | Известить о зачислении средств продавцу |
+| Fulfillment → шина | Notification | Kafka | **async** | Уведомить об отправке и трекинге |
 | Шина → Notification | Notification Service | Kafka | **async** | Единственный потребитель, слабая связность |
 | Notification | Провайдеры уведомлений | HTTPS/SMTP | **async** | Отправка не должна блокировать потребителя |
-
-**Правило выбора способа:** если вызывающий должен получить ответ, чтобы продолжить текущий запрос, — **синхронный вызов**. Если получатель может обработать событие позже, а вызывающему важен факт «событие принято», — **публикация в Kafka**.
-
-## Связи, которые диаграмма намеренно не рисует
-
-У каждого сервиса есть исходящий поток в шину событий и входящий поток из неё. Чтобы не превратить схему в кашу из десятков одинаковых стрелок, на диаграмме нарисованы только **наиболее значимые** потоки. Полный перечень каналов и раздел про владение данными будут добавлены вместе с критериями 3–5, см. [«Что дальше» в README.md](../../README.md#5-что-дальше).
